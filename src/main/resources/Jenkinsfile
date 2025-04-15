@@ -1,0 +1,61 @@
+pipeline {
+    agent any
+
+    environment {
+        DOCKER_IMAGE = 'yourdockerhubuser/helloapp'
+        DOCKER_CREDENTIALS_ID = 'dockerhub-creds'
+    }
+
+    stages {
+        stage('Clone') {
+            steps {
+                git 'https://github.com/your-user/ci-cd-java-sample.git'
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh 'mvn clean package'
+            }
+        }
+
+        stage('Test') {
+            steps {
+                sh 'mvn test'
+            }
+        }
+
+        stage('Docker Build') {
+            steps {
+                script {
+                    docker.build("${DOCKER_IMAGE}:latest")
+                }
+            }
+        }
+
+        stage('Push Image') {
+            steps {
+                script {
+                    docker.withRegistry('', "${DOCKER_CREDENTIALS_ID}") {
+                        docker.image("${DOCKER_IMAGE}:latest").push()
+                    }
+                }
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                sh './deploy.sh' // Could use kubectl or ansible
+            }
+        }
+    }
+
+    post {
+        success {
+            slackSend(channel: '#builds', message: "✅ Build succeeded!")
+        }
+        failure {
+            slackSend(channel: '#builds', message: "❌ Build failed!")
+        }
+    }
+}
